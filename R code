@@ -1,8 +1,133 @@
 
+library(e1071) # SVM
+library(kernlab) # ksvm
+library(lubridate) # Gestion des dates
+
+# Importation u jeu de donnees
+data = read.csv2("D:\\Users\\MOUDOUB\\Desktop\\Données\\DATA.csv")
+
+# On selectionne que les attributs qui nous interessent 
+data = data[,c("DATE", "Valeurs", "Jours", "Heures")]
+View(data)
+
+# On affiche les donnees 
+plot.ts(x = data$Valeurs)
+
+# On cprrige les donnees
+for (i in 1:dim(data)[1])
+  if (data[i,2] == ".")
+    data[i,2] = NA
+
+data$Valeurs = as.numeric(data$Valeurs)
+data$Jours = as.Date(data$Jours)
+
+# On cree un vecteur contenant l'index des VM
+index = is.na(data$Valeurs)
+sum(index)
+
+trainset = cbind(data[!index,1],data[!index,2])
+colnames(trainset) = c("DATE","Valeurs")
+testset = cbind(data[index,1],data[index,2])
+colnames(testset) = c("DATE","Valeurs")
+
+# Vecteur contenant le statut de la valeur 
+Statu =c()
+for (i in 1:dim(data)[1]){
+  if (index[i])
+    Statu = rbind(Statu, "manquante")
+  else
+    Statu = rbind(Statu, "observee")
+}
+
+# Model SVM - Linear Kernel -
+model.svm.kernel.linear = svm(x = trainset[,1],
+                y = trainset[,2], 
+                type ="eps-regression", 
+                kernel = "linear", 
+                cost = 10)
+
+testset[,2] = predict(model.svm.kernel.linear,testset[,1])
+
+data.svm.kernel.linear = testset[,2]
+Statu =c()
+for (i in 1:dim(data)[1]){
+  if (index[i])
+    Statu = rbind(Statu, "manquante")
+  else
+    Statu = rbind(Statu, "observee")
+}
+
+data.svm.kernel.linear = cbind(data,Statu)
+
+# Model SVM - polynomial Kernel of degree 2 -
+model.svm.kernel.polynomial.2 = svm(x = trainset[,1],
+                                    y = trainset[,2], 
+                                    type ="eps-regression", 
+                                    kernel = "polynomial", 
+                                    degree = 2,
+                                    cost = 10)
+
+testset[,2] = predict(model.svm.kernel.polynomial.2,testset[,1])
+
+data.svm.kernel.polynomial.2 = data
+data.svm.kernel.polynomial.2[index,2] = testset[,2]
+
+data.svm.kernel.polynomial.2 = cbind(data.svm.kernel.polynomial.2,Statu)
+
+# Model SVM - Gaussian Kernel -
+model.svm.kernel.gaussian = svm(x = trainset[,1],
+                                    y = trainset[,2], 
+                                    type ="eps-regression", 
+                                    kernel = "radial", 
+                                    cost = 10)
+
+testset[,2] = predict(model.svm.kernel.gaussian,testset[,1])
+
+data.svm.kernel.gaussian = data
+data.svm.kernel.gaussian[index,2] = testset[,2]
+
+data.svm.kernel.gaussian = cbind(data.svm.kernel.gaussian,Statu)
+plotTS(60000,65000,data.svm.kernel.gaussian,2)
+
+# Model SVM - Gaussian Kernel -
+model.svm.kernel.gaussian = svm(x = trainset[,1],
+                                y = trainset[,2], 
+                                type ="nu-regression", 
+                                kernel = "radial",
+                                gamma = 1,
+                                nu = 0.3,
+                                cost = 1)
+
+testset[,2] = predict(model.svm.kernel.gaussian,testset[,1])
+
+data.svm.kernel.gaussian = data
+data.svm.kernel.gaussian[index,2] = testset[,2]
+
+data.svm.kernel.gaussian = cbind(data.svm.kernel.gaussian,Statu)
+plotTS(50000,65000,data.svm.kernel.gaussian,2)
+
+# Model KSVM
+model = ksvm(x = trainset[,1],
+             y = trainset[,2], 
+             type = "eps-svr",
+             kernel = "rbfdot",
+             C = 0.1)
+
+testset[,2] = predict(model,testset[,1])
+
+ksvm = data
+ksvm[index,2] = testset[,2]
+
+ksvm= cbind(ksvm,Statu)
+plotTS(50000,65000,ksvm,2)
+
+plotTS(x,2)
+
 # Methode des moyennes 
 Moyennes = function(dataIncomplete, recapitulatif=NULL, interval, pasDeTemps = 15){
   temp = dataIncomplete;
   semaine = 7*24*60/pasDeTemps;
+  jour = 24*60/pasDeTemps;
   
   # Traitement des valeurs manquantes ponctuelles si elles existent 
  # if (recapitulatif[1,1] == 1){
@@ -80,7 +205,50 @@ Moyennes = function(dataIncomplete, recapitulatif=NULL, interval, pasDeTemps = 1
           cat(sprintf(" > Valeur manquante non ponctuelle trouvee sur un %s à la ligne %d -> Completion avec la valeur %f \n",JS,i,temp[i,2]))
         }
       }
-      else # Si c'est un jour de semaine 
+      else{ # Si c'est un jour de semaine 
+        if ((i > interval*jour) & (i < dim(dataIncomplete)[1]-interval*jour)){ # si la VM est comprise dans []
+          j = i - interval*jour;
+          n = 1;
+          temp[i,2] = 0;
+          while (j<dim(dataIncomplete)[1]-interval*jour){
+            if ((!is.na(dataIncomplete[j,2])) & (JS != "Samedi") & (JS != "Dimanche")){ # Si c'est pas une valeur manquante ET c'est un jour de semaine 
+              temp[i,2] = temp[i,2] + dataIncomplete[j,2];
+              n = n+1;
+            }
+            j = j + jour;
+          }
+          temp[i,2] = temp[i,2]/n
+          cat(sprintf(" > Valeur manquante non ponctuelle trouvee sur un jour de semaine à la ligne %d -> Completion avec la valeur %f \n",i,temp[i,2]))
+        }
+        else if (!(i > interval*jour) & (i < dim(dataIncomplete)[1]-interval*jour)){ # Si ]...]
+          j = 1;
+          n = 1;
+          temp[i,2] = 0;
+          while (j<dim(dataIncomplete)[1]-interval*jour){
+            if (!is.na(dataIncomplete[j,2])){ # Si c'est pas une valeur manquante
+              temp[i,2] = temp[i,2] + dataIncomplete[j,2];
+              n = n+1;
+            }
+            j = j + jour;
+          }
+          temp[i,2] = temp[i,2]/n
+          cat(sprintf(" > Valeur manquante non ponctuelle trouvee sur un jour de semaine à la ligne %d -> Completion avec la valeur %f \n",i,temp[i,2]))
+        }
+        else{ # Si [...[
+          j = i - interval*jour;
+          n = 1;
+          temp[i,2] = 0;
+          while (j<dim(dataIncomplete)[1]){
+            if (!is.na(dataIncomplete[j,2])){ # Si c'est pas une valeur manquante
+              temp[i,2] = temp[i,2] + dataIncomplete[j,2];
+              n = n+1;
+            }
+            j = j + jour;
+          }
+          temp[i,2] = temp[i,2]/n
+          cat(sprintf(" > Valeur manquante non ponctuelle trouvee sur un jour de semaine à la ligne %d -> Completion avec la valeur %f \n",i,temp[i,2]))
+        }
+      }
     }
   }
   return(temp)
@@ -98,4 +266,3 @@ jourSemaine = function(chaine){
     J = (as.integer(23*m/9)+j+4+a+as.integer((a-1)/4)-as.integer((a-1)/100)+as.integer((a-1)/400))%%7
   return(Jours[J+1])
 }
-
