@@ -1,0 +1,101 @@
+
+# Methode des moyennes 
+Moyennes = function(dataIncomplete, recapitulatif=NULL, interval, pasDeTemps = 15){
+  temp = dataIncomplete;
+  semaine = 7*24*60/pasDeTemps;
+  
+  # Traitement des valeurs manquantes ponctuelles si elles existent 
+ # if (recapitulatif[1,1] == 1){
+    for (i in 1:dim(dataIncomplete)[1]){
+      if (is.na((dataIncomplete[i,2]))){ # Si la valeur est manquante 
+        if (i > 1 & i < dim(dataIncomplete)[1]){ # Si la valeur manquante n'est pas la premier ni la derniere 
+          if (!is.na(dataIncomplete[i-1,2]) & !is.na(dataIncomplete[i+1,2])){ # Si la VM est ponctuelle 
+              temp[i,2] = (dataIncomplete[i-1,2] + dataIncomplete[i+1,2])/2 # On fait la moyenne des deux valeurs adjacentes 
+              cat(sprintf(" > Valeur manquante ponctuelle trouvé à la ligne %d -> Completion avec la valeur %f \n",i,temp[i,2]))
+          }
+        }
+        else if (i == 1){ # Si c'est la premiere valeur de la table qui est manquante 
+          if (!is.na(dataIncomplete[2,2]) & !is.na(dataIncomplete[3,2])){ # Si les deux valeurs suivantes ne sont pas des VM
+            temp[1,2] = (dataIncomplete[2,2] + dataIncomplete[3,2])/2 # On fait la moyenne des deux valeurs suivantes
+            cat(sprintf(" > Valeur manquante ponctuelle trouvee à la ligne %d -> Completion avec la valeur %f \n",i,temp[i,2]))
+          }
+          else if(is.na(dataIncomplete[2,2]) & !is.na(dataIncomplete[3,2])){ # Si l'une d'entre elles est manquante on prend que la valeur connue 
+            temp[1,2] = dataIncomplete[3,2]
+            cat(sprintf(" > Valeur manquante ponctuelle trouvee à la ligne %d -> Completion avec la valeur %f \n",i,temp[i,2]))
+          }
+          else{
+            temp[1,2] = dataIncomplete[2,2]
+            cat(sprintf(" > Valeur manquante ponctuelle trouvee à la ligne %d -> Completion avec la valeur %f \n",i,temp[i,2]))
+          }
+        }
+      }
+    }
+ # }
+  
+  # Traitement des plages de valeurs manquantes 
+  for (i in 1:dim(dataIncomplete)[1]){
+    if (is.na(dataIncomplete[i,2])){
+      JS = jourSemaine(dataIncomplete[i,3])
+      if (JS == "Samedi" || JS == "Dimanche"){ # Si c'est un jour de weekend 
+        if ((i > interval*semaine) & (i < dim(dataIncomplete)[1]-interval*semaine)){ # si la VM est comprise dans []
+          j = i - interval*semaine;
+          n = 1;
+          temp[i,2] = 0;
+          while (j<dim(dataIncomplete)[1]-interval*semaine){
+            if (!is.na(dataIncomplete[j,2])){ # Si c'est pas une valeur manquante
+               temp[i,2] = temp[i,2] + dataIncomplete[j,2];
+               n = n+1;
+            }
+            j = j + semaine;
+          }
+          temp[i,2] = temp[i,2]/n
+          cat(sprintf(" > Valeur manquante non ponctuelle trouvee sur un %s à la ligne %d -> Completion avec la valeur %f \n",JS,i,temp[i,2]))
+        }
+        else if (!(i > interval*semaine) & (i < dim(dataIncomplete)[1]-interval*semaine)){
+          j = 1;
+          n = 1;
+          temp[i,2] = 0;
+          while (j<dim(dataIncomplete)[1]-interval*semaine){
+            if (!is.na(dataIncomplete[j,2])){ # Si c'est pas une valeur manquante
+              temp[i,2] = temp[i,2] + dataIncomplete[j,2];
+              n = n+1;
+            }
+            j = j + semaine;
+          }
+          temp[i,2] = temp[i,2]/n
+          cat(sprintf(" > Valeur manquante non ponctuelle trouvee sur un %s à la ligne %d -> Completion avec la valeur %f \n",JS,i,temp[i,2]))
+        }
+        else{
+          j = i - interval*semaine;
+          n = 1;
+          temp[i,2] = 0;
+          while (j<dim(dataIncomplete)[1]){
+            if (!is.na(dataIncomplete[j,2])){ # Si c'est pas une valeur manquante
+              temp[i,2] = temp[i,2] + dataIncomplete[j,2];
+              n = n+1;
+            }
+            j = j + semaine;
+          }
+          temp[i,2] = temp[i,2]/n
+          cat(sprintf(" > Valeur manquante non ponctuelle trouvee sur un %s à la ligne %d -> Completion avec la valeur %f \n",JS,i,temp[i,2]))
+        }
+      }
+      else # Si c'est un jour de semaine 
+    }
+  }
+  return(temp)
+}
+
+# Fonction calculant le jour de la semaine à partir de la date
+jourSemaine = function(chaine){
+  j = as.integer(substr(chaine,1,2))
+  m = as.integer(substr(chaine,4,5))
+  a = as.integer(substr(chaine,7,10))
+  Jours = c("Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi")
+  if (m>=3)
+    J = (as.integer(23*m/9)+j+4+a+as.integer(a/4)-as.integer(a/100)+as.integer(a/400)-2)%%7
+  else
+    J = (as.integer(23*m/9)+j+4+a+as.integer((a-1)/4)-as.integer((a-1)/100)+as.integer((a-1)/400))%%7
+  return(Jours[J+1])
+}
+
